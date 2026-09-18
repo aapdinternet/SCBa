@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ringschluss der Glucose – Schritt für Schritt</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --panel:#ffffff; --ink:#16203a; --muted:#64748b;
+    --accent:#2563eb; --accent-soft:#e0eaff; --border:#e3e8f0;
+    --hl:#d97706; --hl-soft:#fef3c7; --ok:#15803d; --ok-soft:#dcfce7;
+    --err:#b91c1c; --err-soft:#fee2e2;
+    --nu:#7c3aed; --nu-soft:#ede9fe;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+
+  header{margin-bottom:18px}
+  .headrow{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+  #fsBtn{flex:0 0 auto;white-space:nowrap}
+
+  /* ---- Vollbild ---- */
+  html:fullscreen{background:var(--bg);overflow-y:auto}
+  html:-webkit-full-screen{background:var(--bg);overflow-y:auto}
+  .isfs .wrap{max-width:1560px;padding-top:16px}
+  .isfs h1{font-size:1.72rem}
+  .isfs .sub{font-size:1rem}
+  .isfs h2{font-size:1.34rem}
+  .isfs .body p,.isfs .body ul{font-size:1.05rem}
+  .isfs .merk{font-size:.98rem}
+  .isfs .opt,.isfs .quiz h3{font-size:1rem}
+  .isfs .stage{min-height:520px}
+  .isfs .stage svg{max-height:540px}
+  .isfs .mainchain svg{max-height:460px}
+  .isfs .minif{flex:0 0 200px}
+  .isfs .minif svg{max-height:420px}
+  .isfs .dot{width:36px;height:36px;font-size:.86rem}
+  .isfs button.ctl{font-size:1rem;padding:12px 22px}
+  h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:.92rem;margin:0}
+
+  /* ---- Fortschritt ---- */
+  .progress{display:flex;gap:6px;align-items:center;margin:18px 0 14px;flex-wrap:wrap}
+  .dot{
+    width:30px;height:30px;border-radius:9px;border:1px solid var(--border);
+    background:#fff;color:var(--muted);font-size:.78rem;font-weight:600;
+    cursor:pointer;display:grid;place-items:center;transition:.15s;padding:0
+  }
+  .dot:hover{border-color:var(--accent);color:var(--accent)}
+  .dot.done{background:var(--accent-soft);border-color:#c7d9ff;color:#1d4ed8}
+  .dot.cur{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.35)}
+  .dot.quiz::after{content:"?";position:relative;top:-7px;left:6px;font-size:.6rem;color:var(--hl)}
+
+  /* ---- Layout ---- */
+  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 20px;
+        box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .stage{min-height:400px;display:grid;place-items:center;position:relative;padding:10px}
+  .stage svg{width:100%;height:auto;max-height:420px}
+  .scene{display:none;width:100%}
+  .scene.active{display:block;animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .stagenote{display:block;text-align:center;margin-top:12px;font-size:.72rem;color:var(--muted)}
+  .chainrow{display:flex;gap:14px;align-items:center;justify-content:center;width:100%}
+  .minif{flex:0 0 150px;text-align:center;opacity:.92}
+  .minif svg{width:100%;height:auto;max-height:290px}
+  .minicap{font-size:.68rem;line-height:1.3;color:var(--muted);margin-top:2px}
+  .mainchain{flex:1 1 auto;min-width:0}
+  .mainchain svg{width:100%;height:auto;max-height:330px}
+  @media (max-width:640px){.chainrow{flex-direction:column}.minif{flex:0 0 auto;width:130px}}
+
+  /* ---- Text ---- */
+  .steptag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--accent);background:var(--accent-soft);
+    padding:3px 9px;border-radius:99px;margin-bottom:10px}
+  h2{font-size:1.16rem;margin:0 0 10px;letter-spacing:-.01em}
+  .body p{margin:0 0 11px;font-size:.96rem}
+  .body ul{margin:0 0 11px;padding-left:20px;font-size:.96rem}
+  .body li{margin-bottom:5px}
+  .k{background:var(--hl-soft);padding:1px 5px;border-radius:5px;font-weight:600;color:#92400e}
+  .n{background:var(--nu-soft);padding:1px 5px;border-radius:5px;font-weight:600;color:#5b21b6}
+  .g{background:#dcfce7;padding:1px 5px;border-radius:5px;font-weight:600;color:#14532d}
+  .gclick{cursor:pointer;border-bottom:2px dotted #15803d;transition:.15s}
+  .gclick:hover{background:#bbf7d0}
+  .gclick.gon{background:#15803d;color:#fff;border-bottom-color:#15803d}
+  .merk{background:#f8fafc;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;
+    padding:10px 14px;font-size:.9rem;margin-top:12px}
+  .merk b{color:var(--accent)}
+
+  /* ---- Quiz ---- */
+  .quiz{margin-top:16px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;padding:14px 16px}
+  .quiz h3{margin:0 0 10px;font-size:.95rem;display:flex;gap:8px;align-items:flex-start}
+  .quiz h3 #qtext{flex:1 1 auto;min-width:0}
+  .quiz h3 span{background:var(--hl);color:#fff;border-radius:6px;width:20px;height:20px;
+    display:grid;place-items:center;font-size:.72rem;flex:0 0 auto}
+  .opt{display:block;width:100%;text-align:left;background:#fff;border:1px solid #e7d9b0;
+    border-radius:9px;padding:9px 12px;margin-bottom:7px;font-size:.9rem;cursor:pointer;
+    font-family:inherit;color:inherit;transition:.13s}
+  .opt:hover:not(:disabled){border-color:var(--hl);background:#fffdf5}
+  .opt:disabled{cursor:default}
+  .opt.right{background:var(--ok-soft);border-color:#86efac;font-weight:600}
+  .opt.wrong{background:var(--err-soft);border-color:#fca5a5;text-decoration:line-through;opacity:.75}
+  .fb{font-size:.87rem;margin-top:8px;padding:9px 11px;border-radius:8px;display:none}
+  .fb.show{display:block}
+  .fb.good{background:var(--ok-soft);color:#14532d}
+  .fb.bad{background:var(--err-soft);color:#7f1d1d}
+  .reveal{background:none;border:none;color:var(--muted);font-size:.8rem;text-decoration:underline;
+    cursor:pointer;padding:4px 0;font-family:inherit;display:none}
+  .reveal.show{display:inline-block}
+
+  /* ---- Steuerung ---- */
+  .nav{display:flex;gap:10px;align-items:center;margin-top:18px}
+  button.ctl{font-family:inherit;font-size:.92rem;font-weight:600;border-radius:10px;
+    padding:10px 18px;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink);transition:.15s}
+  button.ctl:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  button.ctl.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.ctl.primary:hover:not(:disabled){background:#1d4ed8;color:#fff}
+  button.ctl:disabled{opacity:.4;cursor:not-allowed}
+  .count{margin-left:auto;font-size:.85rem;color:var(--muted)}
+  .hint{font-size:.78rem;color:var(--muted);margin-top:8px}
+
+  .toggle{display:flex;gap:8px;justify-content:center;margin-top:6px}
+  .toggle button{font-family:inherit;font-size:.85rem;font-weight:600;border:1px solid var(--border);
+    background:#fff;border-radius:9px;padding:6px 14px;cursor:pointer;color:var(--muted)}
+  .toggle button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* ---- SVG Basis ---- */
+  .bond{stroke:#334155;stroke-width:2.4;stroke-linecap:round}
+  .bond.front{stroke-width:5.5}
+  .atom{fill:var(--ink);font-size:17px;font-weight:600;text-anchor:middle;
+        font-family:"Inter",system-ui,sans-serif;dominant-baseline:middle}
+  .wedge polygon{fill:#334155;stroke:none}
+  .num{fill:#94a3b8;font-size:11.5px;font-weight:700;text-anchor:middle;
+       font-family:"Inter",system-ui,sans-serif;dominant-baseline:middle}
+  .halo{fill:#fff}
+  .hl,.hl *{stroke:var(--hl)!important}
+  .hl text,text.hl{fill:#b45309!important;stroke:none!important}
+  .hl,.hl text{filter:drop-shadow(0 0 5px rgba(217,119,6,.5))}
+  .nuc,.nuc *{stroke:var(--nu)!important}
+  .nuc text,text.nuc{fill:#5b21b6!important;stroke:none!important}
+  .fade{opacity:.22;transition:opacity .3s}
+  .hidden{display:none}
+  @keyframes popin{from{opacity:0;transform:scale(.55)}60%{opacity:1;transform:scale(1.12)}to{opacity:1;transform:scale(1)}}
+  .popin{animation:popin .5s cubic-bezier(.34,1.3,.64,1) both;transform-origin:center;transform-box:fill-box}
+  .hac{fill:none;stroke:#a7f3d0;stroke-width:19;stroke-linecap:round;stroke-linejoin:round}
+  #chainSvg.haclit .ringo-halo{fill:#a7f3d0}
+
+  .genr{display:grid;grid-template-columns:repeat(5,auto);column-gap:12px;row-gap:7px;
+        justify-content:center;align-items:center;padding:28px 10px 8px;
+        font-size:1.4rem;font-weight:600;letter-spacing:.01em}
+  .genr .plus,.genr .arr{color:var(--muted);font-weight:400}
+  .genr .lbl2{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center}
+  .genr .box{display:inline-block;padding:6px 10px;border-radius:9px;text-align:center}
+  .genr .el{background:var(--hl-soft);color:#92400e}
+  .genr .nu2{background:var(--nu-soft);color:#5b21b6}
+  .genr .prod{background:var(--ok-soft);color:#14532d}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="headrow">
+    <div>
+      <h1>Vom Kettenmolekül zum Ring: der Ringschluss der Glucose</h1>
+      <p class="sub">Interaktive Schritt-für-Schritt-Animation · intramolekulare Halbacetal-Bildung, Fischer-Projektion, Haworth-Projektion</p>
+    </div>
+    <button class="ctl" id="fsBtn" title="Vollbild ein-/ausschalten (Esc beendet)">⤢ Vollbild</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"></div>
+
+<div class="grid">
+
+  <!-- ============ BÜHNE ============ -->
+  <div class="card stage">
+
+    <!-- ---------- Szene 1: Fischer ---------- -->
+    <div class="scene" data-scene="fischer">
+      <svg viewBox="0 0 380 350" role="img" aria-label="D-Glucose in Fischer-Projektion">
+        <g id="f-chain">
+          <line class="bond" x1="180" y1="58" x2="180" y2="302"/>
+          <!-- Keilbindungen: zeigen zur Betrachterin -->
+          <g class="wedge">
+            <polygon points="180,98.5 150,94 150,106 180,101.5"/>
+            <polygon points="180,98.5 210,94 210,106 180,101.5"/>
+            <polygon points="180,153.5 150,149 150,161 180,156.5"/>
+            <polygon points="180,153.5 210,149 210,161 180,156.5"/>
+            <polygon points="180,208.5 150,204 150,216 180,211.5"/>
+            <polygon points="180,208.5 210,204 210,216 180,211.5"/>
+            <polygon points="180,263.5 150,259 150,271 180,266.5"/>
+            <polygon points="180,263.5 210,259 210,271 180,266.5"/>
+          </g>
+        </g>
+
+        <g id="f-aldehyd">
+          <rect class="halo" x="148" y="30" width="64" height="26" rx="4"/>
+          <text class="atom" x="180" y="44">CHO</text>
+        </g>
+
+        <g id="f-oh">
+          <text class="atom" x="132" y="100" text-anchor="end">H</text>
+          <text class="atom" x="228" y="100" text-anchor="start">OH</text>
+          <text class="atom" x="132" y="155" text-anchor="end">HO</text>
+          <text class="atom" x="228" y="155" text-anchor="start">H</text>
+          <text class="atom" x="132" y="210" text-anchor="end">H</text>
+          <text class="atom" x="228" y="210" text-anchor="start">OH</text>
+          <text class="atom" x="132" y="265" text-anchor="end">H</text>
+          <text class="atom" x="228" y="265" text-anchor="start">OH</text>
+        </g>
+
+        <g id="f-c6">
+          <rect class="halo" x="140" y="303" width="80" height="26" rx="4"/>
+          <text class="atom" x="180" y="317">CH₂OH</text>
+        </g>
+
+        <g id="f-c5mark" class="hidden">
+          <ellipse cx="228" cy="264" rx="24" ry="15.5" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="5 4"/>
+        </g>
+
+        <g class="num">
+          <text x="320" y="44">C1</text>
+          <text x="320" y="100">C2</text>
+          <text x="320" y="155">C3</text>
+          <text x="320" y="210">C4</text>
+          <text x="320" y="265">C5</text>
+          <text x="320" y="317">C6</text>
+        </g>
+      </svg>
+      <div class="stagenote">Fischer-Projektion · offenkettige D-Glucose</div>
+    </div>
+
+    <!-- ---------- Szene 2: generisches Halbacetal ---------- -->
+    <div class="scene" data-scene="generic">
+      <div class="genr">
+        <span class="box el">R–CH=O</span>
+        <span class="plus">+</span>
+        <span class="box nu2">H–O–R′</span>
+        <span class="arr">⟶</span>
+        <span class="box prod">R–CH(OH)–O–R′</span>
+        <span class="lbl2">Aldehyd</span>
+        <span></span>
+        <span class="lbl2">Alkohol</span>
+        <span></span>
+        <span class="lbl2">Halbacetal</span>
+      </div>
+      <svg viewBox="0 0 540 200" style="max-height:225px">
+        <defs>
+          <marker id="arrP" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+          </marker>
+        </defs>
+
+        <!-- ===== Aldehyd: R–CH=O, sp²-C, Bindungswinkel 120° ===== -->
+        <g>
+          <!-- C=O senkrecht nach oben -->
+          <line class="bond" x1="125" y1="94" x2="125" y2="78"/>
+          <line class="bond" x1="135" y1="94" x2="135" y2="78"/>
+          <text class="atom" x="130" y="64">O</text>
+          <!-- C–R nach unten links (210°) -->
+          <line class="bond" x1="117.9" y1="115" x2="98.8" y2="126"/>
+          <text class="atom" x="82" y="136">R</text>
+          <!-- C–H nach unten rechts (330°) -->
+          <line class="bond" x1="142.1" y1="115" x2="161.2" y2="126"/>
+          <text class="atom" x="176" y="136">H</text>
+          <!-- Carbonyl-C -->
+          <text class="atom" x="130" y="108" style="fill:#92400e">C</text>
+          <!-- δ+ direkt am Carbonyl-C -->
+          <text class="atom" x="158" y="110" style="font-size:16px;fill:#92400e">δ+</text>
+          <text class="atom" x="130" y="180" style="font-size:12.5px;fill:#64748b">Carbonyl-C: elektronenarm</text>
+        </g>
+
+        <!-- ===== Alkohol: H–O–R′, sp³-O, Bindungswinkel 104,5° ===== -->
+        <g>
+          <!-- O–H nach unten links -->
+          <line class="bond" x1="389.7" y1="118" x2="373" y2="130.8"/>
+          <text class="atom" x="358" y="142">H</text>
+          <!-- O–R′ nach unten rechts -->
+          <line class="bond" x1="410.3" y1="118" x2="427" y2="130.8"/>
+          <text class="atom" x="444" y="142">R′</text>
+          <!-- Hydroxy-O -->
+          <text class="atom" x="400" y="110" style="fill:#5b21b6">O</text>
+          <!-- freie Elektronenpaare: tetraedrisch nach oben, je 104,5° -->
+          <line x1="388.1" y1="89.4" x2="377.1" y2="103.6" stroke="#5b21b6" stroke-width="3" stroke-linecap="round"/>
+          <line x1="411.9" y1="89.4" x2="422.9" y2="103.6" stroke="#5b21b6" stroke-width="3" stroke-linecap="round"/>
+          <!-- δ− direkt am Hydroxy-O -->
+          <text class="atom" x="400" y="72" style="font-size:16px;fill:#5b21b6">δ−</text>
+          <text class="atom" x="400" y="180" style="font-size:12.5px;fill:#64748b">Alkohol-O: Nucleophil</text>
+        </g>
+
+        <!-- Pfeil: startet exakt am linken freien Elektronenpaar -->
+        <path d="M 382.6 96.5 C 330 24 200 24 148 86" fill="none" stroke="#7c3aed" stroke-width="2.6"
+              stroke-dasharray="6 4" marker-end="url(#arrP)"/>
+      </svg>
+      <div class="stagenote">Allgemeines Reaktionsprinzip</div>
+    </div>
+
+    <!-- ---------- Szene 3: gewinkelte Kette / Ringschluss ---------- -->
+    <div class="scene" data-scene="chain">
+     <div class="chainrow">
+
+      <!-- Orientierungshilfe: Fischer-Projektion aus Schritt 1 -->
+      <div class="minif">
+        <svg viewBox="100 22 240 312" role="img" aria-label="Fischer-Projektion zur Orientierung">
+          <line class="bond" x1="180" y1="58" x2="180" y2="302"/>
+          <g class="wedge">
+            <polygon points="180,98.5 150,94 150,106 180,101.5"/>
+            <polygon points="180,98.5 210,94 210,106 180,101.5"/>
+            <polygon points="180,153.5 150,149 150,161 180,156.5"/>
+            <polygon points="180,153.5 210,149 210,161 180,156.5"/>
+            <polygon points="180,208.5 150,204 150,216 180,211.5"/>
+            <polygon points="180,208.5 210,204 210,216 180,211.5"/>
+            <polygon points="180,263.5 150,259 150,271 180,266.5"/>
+            <polygon points="180,263.5 210,259 210,271 180,266.5"/>
+          </g>
+          <rect class="halo" x="148" y="30" width="64" height="26" rx="4"/>
+          <text class="atom" x="180" y="44">CHO</text>
+          <text class="atom" x="132" y="100" text-anchor="end">H</text>
+          <text class="atom" x="228" y="100" text-anchor="start">OH</text>
+          <text class="atom" x="132" y="155" text-anchor="end">HO</text>
+          <text class="atom" x="228" y="155" text-anchor="start">H</text>
+          <text class="atom" x="132" y="210" text-anchor="end">H</text>
+          <text class="atom" x="228" y="210" text-anchor="start">OH</text>
+          <text class="atom" x="132" y="265" text-anchor="end">H</text>
+          <text class="atom" x="228" y="265" text-anchor="start">OH</text>
+          <rect class="halo" x="140" y="303" width="80" height="26" rx="4"/>
+          <text class="atom" x="180" y="317">CH₂OH</text>
+          <g class="num">
+            <text x="320" y="44">C1</text><text x="320" y="100">C2</text>
+            <text x="320" y="155">C3</text><text x="320" y="210">C4</text>
+            <text x="320" y="265">C5</text><text x="320" y="317">C6</text>
+          </g>
+        </svg>
+        <div class="minicap">Fischer-Projektion<br>(Schritt 1)</div>
+      </div>
+
+      <!-- Seitenansicht / beginnender Ringschluss -->
+      <div class="mainchain">
+      <svg id="chainSvg" viewBox="0 0 420 262" role="img" aria-label="Ringschluss der Glucose">
+        <defs>
+          <marker id="arrN" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+          </marker>
+          <marker id="arrH" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#d97706"/>
+          </marker>
+          <marker id="arrNs" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+          </marker>
+        </defs>
+
+        <!-- grüne Markierung der Halbacetal-Gruppe (per Klick) -->
+        <g id="ch-hac" class="hidden">
+          <path class="hac" d="M 150 70 L 250 70 L 300 120 L 250 170"/>
+          <path class="hac" d="M 300 120 L 380 120"/>
+        </g>
+
+        <!-- Gerüst: lückenlos, Sechsring angedeutet -->
+        <g>
+          <line class="bond" x1="150" y1="70"  x2="234" y2="70"/>
+          <line class="bond" x1="150" y1="70"  x2="100" y2="120"/>
+          <line class="bond front" x1="100" y1="120" x2="151" y2="171"/>
+          <line class="bond front" x1="149" y1="170" x2="251" y2="170"/>
+          <line class="bond front" x1="250" y1="170" x2="300" y2="120"/>
+        </g>
+
+        <!-- neue Bindung O–C1 -->
+        <line id="ch-newbond" class="bond hidden" x1="261" y1="81" x2="300" y2="120"/>
+
+        <!-- Ringsauerstoff -->
+        <g class="atom">
+          <rect class="halo ringo-halo" x="238" y="58" width="24" height="24" rx="4"/>
+          <text x="250" y="70" style="fill:#5b21b6">O</text>
+        </g>
+
+        <!-- O–H, Winkel C5–O–H = 109° -->
+        <g id="ch-oh5">
+          <line class="bond" x1="255.2" y1="54.9" x2="261.5" y2="36.7"/>
+          <text class="atom" x="266" y="26">H</text>
+        </g>
+        <!-- freie Elektronenpaare am O -->
+        <g id="ch-lpA" class="hidden">
+          <line x1="270" y1="61" x2="270" y2="79" stroke="#5b21b6" stroke-width="3" stroke-linecap="round"/>
+        </g>
+        <g id="ch-lpB" class="hidden">
+          <line x1="235.9" y1="86.3" x2="251.1" y2="91.5" stroke="#5b21b6" stroke-width="3" stroke-linecap="round"/>
+        </g>
+        <!-- zwei freie Elektronenpaare am neutralen Ringsauerstoff -->
+        <g id="ch-lp2" class="hidden">
+          <line x1="232" y1="55" x2="247" y2="50" stroke="#5b21b6" stroke-width="3" stroke-linecap="round"/>
+          <line x1="254" y1="50" x2="269" y2="56" stroke="#5b21b6" stroke-width="3" stroke-linecap="round"/>
+        </g>
+        <!-- positive Ladung am Ringsauerstoff -->
+        <g id="ch-oplus" class="hidden">
+          <circle cx="232" cy="50" r="8.5" fill="none" stroke="#5b21b6" stroke-width="1.6"/>
+          <text class="atom" x="232" y="50" style="font-size:14px;fill:#5b21b6">+</text>
+        </g>
+
+        <!-- C1 Carbonyl -->
+        <g id="ch-carbonyl">
+          <line class="bond" x1="302" y1="114" x2="344" y2="114"/>
+          <line class="bond" x1="302" y1="126" x2="344" y2="126"/>
+          <text class="atom" x="360" y="120">O</text>
+          <line class="bond" x1="300" y1="120" x2="318" y2="156"/>
+          <text class="atom" x="326" y="168">H</text>
+        </g>
+
+        <!-- C1 direkt nach dem Angriff: Alkoholat O⁻ -->
+        <g id="ch-c1ominus" class="hidden">
+          <line class="bond" x1="300" y1="120" x2="344" y2="120"/>
+          <text class="atom" x="356" y="120">O</text>
+          <line x1="348" y1="99"  x2="364" y2="99"  stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+          <line x1="348" y1="141" x2="364" y2="141" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+          <line x1="377" y1="112" x2="377" y2="128" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="398" cy="120" r="8.5" fill="none" stroke="#16203a" stroke-width="1.6"/>
+          <text class="atom" x="398" y="120" style="font-size:14px">–</text>
+          <line class="bond" x1="300" y1="120" x2="318" y2="156"/>
+          <text class="atom" x="326" y="168">H</text>
+        </g>
+
+        <!-- C1 nach Ringschluss: OH -->
+        <g id="ch-c1oh" class="hidden">
+          <line class="bond" x1="300" y1="120" x2="344" y2="120"/>
+          <text class="atom" x="366" y="120">OH</text>
+          <line class="bond" x1="300" y1="120" x2="318" y2="156"/>
+          <text class="atom" x="326" y="168">H</text>
+        </g>
+
+        <!-- Angriffspfeil: startet exakt am freien Elektronenpaar -->
+        <path id="ch-attack" class="hidden" d="M 272 72 Q 292 88 296 106" fill="none"
+              stroke="#7c3aed" stroke-width="2.8" stroke-dasharray="6 4" marker-end="url(#arrN)"/>
+        <!-- π-Elektronenpaar wandert zum Carbonyl-Sauerstoff -->
+        <path id="ch-pi" class="hidden" d="M 328 129 C 344 178 390 168 368 133" fill="none"
+              stroke="#7c3aed" stroke-width="2.8" stroke-dasharray="6 4" marker-end="url(#arrN)"/>
+        <!-- H-Wanderung -->
+        <path id="ch-hshift" class="hidden" d="M 272 24 Q 350 26 356 82" fill="none"
+              stroke="#d97706" stroke-width="2.4" stroke-dasharray="5 4" marker-end="url(#arrH)"/>
+        <!-- bindendes Elektronenpaar der O–H-Bindung wandert zum Ringsauerstoff -->
+        <path id="ch-ohbreak" class="hidden" d="M 258 47 C 284 50 284 73 265 69" fill="none"
+              stroke="#7c3aed" stroke-width="2.4" stroke-dasharray="5 3.5" marker-end="url(#arrNs)"/>
+
+        <!-- Substituenten -->
+        <g>
+          <line class="bond" x1="150" y1="70" x2="150" y2="40"/>
+          <text class="atom" x="150" y="28">CH₂OH</text>
+          <line class="bond" x1="100" y1="120" x2="100" y2="152"/>
+          <text class="atom" x="100" y="166">OH</text>
+          <line class="bond" x1="150" y1="170" x2="150" y2="140"/>
+          <rect class="halo" x="128" y="120" width="44" height="22" rx="4"/>
+          <text class="atom" x="150" y="130">OH</text>
+          <line class="bond" x1="250" y1="170" x2="250" y2="202"/>
+          <text class="atom" x="250" y="216">OH</text>
+        </g>
+
+        <g class="num">
+          <text x="318" y="100">1</text>
+          <text x="272" y="192">2</text>
+          <text x="128" y="192">3</text>
+          <text x="74" y="110">4</text>
+          <text x="126" y="52">5</text>
+        </g>
+      </svg>
+      </div>
+
+     </div>
+     <div class="stagenote">H-Atome an den Ring-C-Atomen sind weggelassen</div>
+    </div>
+
+    <!-- ---------- Szene 4: Haworth ---------- -->
+    <div class="scene" data-scene="haworth">
+      <svg viewBox="0 0 400 250" role="img" aria-label="Haworth-Projektion der Glucose">
+        <!-- Ring -->
+        <g>
+          <line class="bond" x1="288" y1="108" x2="258" y2="72"/>
+          <line class="bond" x1="238" y1="66" x2="162" y2="66"/>
+          <line class="bond" x1="142" y1="72" x2="112" y2="108"/>
+          <line class="bond front" x1="100" y1="128" x2="140" y2="160"/>
+          <line class="bond front" x1="150" y1="166" x2="250" y2="166"/>
+          <line class="bond front" x1="260" y1="160" x2="300" y2="128"/>
+        </g>
+        <g class="atom">
+          <rect class="halo" x="238" y="54" width="24" height="24" rx="4"/>
+          <text x="250" y="66">O</text>
+          <text x="300" y="118">C</text><text x="250" y="166">C</text>
+          <text x="150" y="166">C</text><text x="100" y="118">C</text>
+          <text x="150" y="66">C</text>
+        </g>
+        <g class="num">
+          <text x="328" y="132">1</text><text x="278" y="190">2</text>
+          <text x="122" y="190">3</text><text x="72" y="132">4</text>
+          <text x="122" y="46">5</text>
+        </g>
+
+        <!-- feste Substituenten -->
+        <g>
+          <line class="bond" x1="150" y1="54" x2="150" y2="36"/>
+          <text class="atom" x="150" y="24">CH₂OH</text>
+          <line class="bond" x1="250" y1="178" x2="250" y2="198"/>
+          <text class="atom" x="250" y="212">OH</text>
+          <line class="bond" x1="150" y1="154" x2="150" y2="138"/>
+          <rect class="halo" x="128" y="118" width="44" height="22" rx="4"/>
+          <text class="atom" x="150" y="128">OH</text>
+          <line class="bond" x1="100" y1="130" x2="100" y2="152"/>
+          <text class="atom" x="100" y="166">OH</text>
+        </g>
+
+        <!-- C1: beta (OH oben) -->
+        <g id="hw-beta">
+          <line class="bond" x1="300" y1="106" x2="300" y2="86"/>
+          <text class="atom" x="300" y="74" style="fill:#15803d">OH</text>
+        </g>
+        <!-- C1: alpha (OH unten) -->
+        <g id="hw-alpha" class="hidden">
+          <line class="bond" x1="300" y1="130" x2="300" y2="150"/>
+          <text class="atom" x="300" y="162" style="fill:#b91c1c">OH</text>
+        </g>
+
+        <!-- Markierung anomeres Zentrum -->
+        <g id="hw-anomer" class="hidden">
+          <circle cx="300" cy="118" r="24" fill="none" stroke="#d97706" stroke-width="2.6" stroke-dasharray="4 3"/>
+        </g>
+        <text id="hw-name" class="atom" x="200" y="240" style="font-size:14px;fill:#64748b">β-D-Glucose</text>
+      </svg>
+      <div class="toggle" id="hwToggle">
+        <button data-an="alpha">α-Form</button>
+        <button data-an="beta" class="on">β-Form</button>
+      </div>
+      <div class="stagenote">H-Atome an den Ring-C-Atomen sind weggelassen</div>
+    </div>
+
+  </div>
+
+  <!-- ============ TEXT ============ -->
+  <div class="card">
+    <div class="steptag" id="tag">Schritt 1</div>
+    <h2 id="title"></h2>
+    <div class="body" id="body"></div>
+
+    <div class="quiz hidden" id="quiz">
+      <h3><span>?</span><span id="qtext" style="background:none;color:inherit;width:auto;height:auto;display:block;font-size:.95rem"></span></h3>
+      <div id="qopts"></div>
+      <div class="fb" id="qfb"></div>
+      <button class="reveal" id="qreveal">Lösung anzeigen</button>
+    </div>
+
+    <div class="nav">
+      <button class="ctl" id="prev">← Zurück</button>
+      <button class="ctl primary" id="next">Weiter →</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="hint">Tipp: mit ← und → Taste navigieren</div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const STEPS = [
+  {
+    scene:"fischer",
+    title:"Ausgangspunkt: die offenkettige D-Glucose",
+    body:`<p>Glucose ist eine <b>Aldose</b> – ein Zucker mit sechs C-Atomen und einer
+      <span class="k">Aldehydgruppe</span>, also eine <b>Hexose</b>.
+      Gezeichnet ist die <b>Fischer-Projektion</b>.</p>`,
+    merk:"Nummerierung immer von der Carbonylgruppe aus – C1 ist das Aldehyd-C.",
+    hl:["f-aldehyd"]
+  },
+  {
+    scene:"fischer",
+    title:"Zwei Sorten funktioneller Gruppen",
+    body:`<p>Die Glucose trägt gleichzeitig zwei Gruppen, die miteinander reagieren können:</p>
+      <ul>
+        <li>eine <span class="k">Aldehydgruppe</span> an C1</li>
+        <li>mehrere <span class="n">Hydroxygruppen</span> an C2–C6</li>
+      </ul>
+      <p>Genau das ist der Schlüssel: Das Molekül kann <b>mit sich selbst</b> reagieren –
+      <i>intramolekular</i>. Es braucht keinen zweiten Reaktionspartner.</p>`,
+    hl:["f-aldehyd"], nuc:["f-oh"],
+    quiz:{
+      q:"Wie viele OH-Gruppen trägt die offenkettige D-Glucose?",
+      options:["4","5","6"], correct:1,
+      ok:"Richtig – an C2, C3, C4, C5 und C6. Zusammen mit der CHO-Gruppe an C1 sind alle sechs C-Atome mit Sauerstoff verknüpft.",
+      bad:["Zähl nochmals nach: an welchen C-Atomen steht ein OH?","Achtung – C6 (CH₂OH) zählt auch mit."]
+    }
+  },
+  {
+    scene:"generic",
+    title:"Das Prinzip: Aldehyd + Alkohol → Halbacetal",
+    body:`<p>Bevor wir die Glucose anschauen, das allgemeine Reaktionsmuster:</p>
+      <p>Am <span class="k">Carbonyl-Kohlenstoff</span> der Aldehydgruppe zieht der Sauerstoff
+      Elektronen zu sich –
+      das C-Atom wird <b>elektronenarm (δ+)</b> und damit angreifbar.
+      Der <span class="n">Sauerstoff einer OH-Gruppe</span> besitzt zwei freie Elektronenpaare
+      und ist damit ein <b>Nucleophil</b>.</p>
+      <p>Der Alkohol-Sauerstoff greift den Carbonyl-Kohlenstoff an. Es entsteht ein
+      <span class="g">Halbacetal</span>: ein C-Atom, das gleichzeitig eine <b>OH-Gruppe</b> und eine
+      <b>O–R-Gruppe</b> trägt.</p>`,
+    merk:'<span class="g">Halbacetal</span> = ein C-Atom mit OH <b>und</b> OR am selben Kohlenstoff.' 
+  },
+  {
+    scene:"fischer",
+    title:"Welche OH-Gruppe greift an?",
+    body:`<p>In der Glucose sind Aldehyd und Alkohol im <b>selben Molekül</b>. Die Kette kann sich
+      drehen, sodass eine OH-Gruppe in die Nähe von C1 gelangt.</p>
+      <p>Entscheidend ist, welcher <b>Ring</b> dabei entsteht: Fünf- und Sechsringe sind
+      energetisch am günstigsten, Drei- und Vierringe wären stark gespannt.</p>`,
+    quiz:{
+      q:"Welche OH-Gruppe greift bei der Glucose bevorzugt das C1-Atom an?",
+      options:["die OH-Gruppe an C2","die OH-Gruppe an C4","die OH-Gruppe an C5","die OH-Gruppe an C6"],
+      correct:2,
+      ok:"Genau. Über die C5-OH-Gruppe entsteht ein spannungsarmer Sechsring aus C1–C5 plus dem Sauerstoff – eine <b>Pyranose</b>.",
+      bad:["Zähl die Ringglieder mit: C1, die C-Atome dazwischen und der O selbst.",
+           "Der Ring braucht 6 Glieder → C1, C2, C3, C4, C5 und O. Welche OH liefert diesen O?"],
+      reveal:["f-c5mark"]
+    }
+  },
+  {
+    scene:"chain",
+    title:"Das Molekül von der Seite betrachtet: von der Fischer- zur Haworth-Darstellung",
+    body:`<p>Dasselbe Molekül – nur anders gezeichnet. Die Kette ist so um die Einfachbindungen
+      gedreht, dass die <span class="n">OH-Gruppe an C5</span> direkt neben das
+      <span class="k">C1-Atom</span> zu liegen kommt. Dies passt geometrisch sehr gut.</p>
+      <p>Es wurde <b>nichts umgebaut</b>: Es ist immer noch die offenkettige Glucose.</p>`,
+    merk:"Diese Zwischendarstellung ist der Übergang von Fischer zu Haworth.",
+    show:["ch-lpA","ch-lpB"], hl:["ch-carbonyl"], nuc:["ch-oh5"],
+    quiz:{
+      q:"Vergleiche die OH-Stellungen mit der Fischer-Projektion: Was bei Fischer nach rechts steht – steht das hier nach oben oder nach unten?",
+      options:["nach unten","nach oben","mal so, mal so – das ist zufällig"],
+      correct:0,
+      ok:"Richtig. C2-OH und C4-OH stehen in der Fischer-Projektion <b>rechts</b> und zeigen hier <b>nach unten</b>. C3-OH steht links und zeigt entsprechend nach oben.",
+      bad:["Schau dir C2 an: In der Fischer-Projektion steht die OH-Gruppe rechts. Wo steht sie in der Seitenansicht?",
+           "Es ist keine Zufallsregel – vergleiche C2 und C4 (beide rechts) systematisch mit der rechten Zeichnung."]
+    }
+  },
+  {
+    scene:"chain",
+    title:"Nucleophiler Angriff",
+    body:`<p>Der <span class="n">Sauerstoff der C5-OH-Gruppe</span> greift mit einem freien
+      Elektronenpaar den <span class="k">Carbonyl-Kohlenstoff C1</span> an.</p>
+      <p>Gleichzeitig klappt die C=O-Doppelbindung auf: Das π-Elektronenpaar wandert vollständig
+      zum Sauerstoff, der dadurch negativ geladen wird.</p>`,
+    show:["ch-attack","ch-pi","ch-lpA","ch-lpB"], hl:["ch-carbonyl"], nuc:["ch-oh5","ch-lpA","ch-lpB"]
+  },
+  {
+    scene:"chain",
+    title:"Bindung geschlossen, Proton wandert",
+    body:`<p>Es entsteht eine neue <b>C1–O-Bindung</b> – der Ring ist geschlossen. Der
+      Ringsauerstoff trägt dadurch kurzzeitig eine <b>positive Ladung</b>, das C1 ein negativ
+      geladenes <b>Alkoholat</b>.</p>
+      <p>Das Wasserstoffatom wandert nun vom Ringsauerstoff an dieses
+      Alkoholat. Damit gleichen sich die Ladungen aus und aus dem Alkoholat wird die
+      <b>OH-Gruppe an C1</b>.</p>
+      <p>Der Sauerstoff, der vorher zur C5-OH-Gruppe gehörte, ist jetzt <b>Ringsauerstoff</b>.</p>`,
+    show:["ch-newbond","ch-hshift","ch-ohbreak","ch-oplus","ch-lpB","ch-c1ominus"], hide:["ch-carbonyl"]
+  },
+  {
+    scene:"chain",
+    title:"Ergebnis: ein cyclisches Halbacetal",
+    body:`<p>Schau dir C1 genau an: Dieses C-Atom trägt jetzt <b>eine OH-Gruppe</b> und
+      <b>eine O–R-Gruppe</b>. Diese für uns neue funktionelle Gruppe heisst
+      <span class="g gclick" id="hacToggle" title="anklicken – markiert die Gruppe in der Zeichnung">Halbacetal</span>.</p>
+      <p>Weil er als einziges C-Atom des Rings zwei Sauerstoffe trägt, hat er einen eigenen Namen:
+      <b>anomeres C-Atom</b>.</p>`,
+    merk:'Der Ringschluss einer Aldose führt zu einem <span class="g">Halbacetal</span>.',
+    show:["ch-newbond","ch-c1oh","ch-lp2"], hide:["ch-carbonyl","ch-oh5"],
+    quiz:{
+      q:"Woran erkennt man den Halbacetal-Kohlenstoff im Ring?",
+      options:["Er trägt zwei OH-Gruppen.","Er trägt die CH₂OH-Gruppe.","Er ist das C-Atom neben dem Ringsauerstoff.","Er trägt eine OH-Gruppe und eine O–R-Gruppe."],
+      correct:3,
+      ok:"Genau – OH und O–R am selben C-Atom. Das ist die Definition des Halbacetals.",
+      bad:["Achte darauf, welche <i>zwei verschiedenen</i> Sauerstoff-Gruppen an C1 hängen.",
+           "Zwei gleiche Gruppen ergeben kein Halbacetal – gesucht ist die Kombination OH + O–R."]
+    }
+  },
+  {
+    scene:"haworth",
+    title:"Sauber gezeichnet: die Haworth-Projektion",
+    body:`<p>In der <b>Haworth-Projektion</b> wird der Ring als ebenes Sechseck gezeichnet, das man
+      von der Kante her sieht: Die <b>dick gezeichneten Bindungen liegen vorn</b>, der Ringsauerstoff
+      steht hinten rechts.</p>
+      <p>Die Umrechnung aus der Fischer-Projektion folgt einer einfachen Regel:</p>
+      <ul>
+        <li>OH <b>rechts</b> in Fischer → OH zeigt <b>nach unten</b></li>
+        <li>OH <b>links</b> in Fischer → OH zeigt <b>nach oben</b></li>
+      </ul>
+      <p>Die OH-Gruppe am anomeren C1 kann nach oben oder unten stehen. Beides ist möglich.
+      Wenn sie nach oben steht, ist es eine <b>β-D-Glucose</b>, steht sie nach unten eine
+      <b>α-D-Glucose</b>.</p>`,
+    show:["hw-anomer"]
+  },
+];
+
+/* ---------- State ---------- */
+let cur = 0;
+const solved = new Array(STEPS.length).fill(false);
+STEPS.forEach((s,i)=>{ if(!s.quiz) solved[i]=true; });
+
+const $ = id => document.getElementById(id);
+const scenes = [...document.querySelectorAll(".scene")];
+const ALL_TOGGLE = ["f-c5mark","ch-hac","ch-newbond","ch-hshift","ch-ohbreak","ch-c1oh","ch-c1ominus","ch-oplus","ch-attack","ch-pi","ch-lpA","ch-lpB","ch-lp2","hw-anomer"];
+const ALL_HIDEABLE = ["ch-carbonyl","ch-oh5"];
+const HLABLE = ["f-aldehyd","f-oh","ch-carbonyl","ch-oh5","ch-lpA","ch-lpB"];
+
+/* ---------- Progress ---------- */
+const prog = $("progress");
+STEPS.forEach((s,i)=>{
+  const b=document.createElement("button");
+  b.className="dot"+(s.quiz?" quiz":""); b.textContent=i+1;
+  b.title=s.title;
+  b.onclick=()=>{ if(i<=maxReached()) go(i); };
+  prog.appendChild(b);
+});
+function maxReached(){
+  let m=0;
+  for(let i=0;i<STEPS.length;i++){ m=i; if(!solved[i]) break; }
+  return Math.max(m, cur);
+}
+
+function applySceneVis(s){
+  ALL_TOGGLE.forEach(id=>{ const e=$(id); if(e){ e.classList.add("hidden"); e.classList.remove("popin"); } });
+  ALL_HIDEABLE.forEach(id=>$(id) && $(id).classList.remove("hidden"));
+  HLABLE.forEach(id=>{ const e=$(id); if(e){e.classList.remove("hl","nuc","fade");} });
+  (s.show||[]).forEach(id=>$(id) && $(id).classList.remove("hidden"));
+  (s.hide||[]).forEach(id=>$(id) && $(id).classList.add("hidden"));
+  (s.fade||[]).forEach(id=>$(id) && $(id).classList.add("fade"));
+  (s.hl||[]).forEach(id=>$(id) && $(id).classList.add("hl"));
+  (s.nuc||[]).forEach(id=>$(id) && $(id).classList.add("nuc"));
+}
+
+/* ---------- Render ---------- */
+function render(){
+  const s = STEPS[cur];
+
+  scenes.forEach(sc=>sc.classList.toggle("active", sc.dataset.scene===s.scene));
+
+  applySceneVis(s);
+
+  $("tag").textContent = "Schritt "+(cur+1)+" von "+STEPS.length;
+  $("title").textContent = s.title;
+  $("body").innerHTML = s.body + (s.merk ? '<div class="merk"><b>Merke:</b> '+s.merk+'</div>' : '');
+
+  const csv = $("chainSvg"); if(csv) csv.classList.remove("haclit");
+  const ht = $("hacToggle");
+  if(ht) ht.onclick = () => {
+    const sv = $("chainSvg"); if(!sv) return;
+    const on = sv.classList.toggle("haclit");
+    $("ch-hac").classList.toggle("hidden", !on);
+    if(on) $("ch-hac").classList.add("popin"); else $("ch-hac").classList.remove("popin");
+    ht.classList.toggle("gon", on);
+  };
+
+  // Quiz
+  const qbox = $("quiz");
+  if(s.quiz){
+    qbox.classList.remove("hidden");
+    $("qtext").innerHTML = s.quiz.q;
+    const box = $("qopts"); box.innerHTML="";
+    s.quiz.options.forEach((o,i)=>{
+      const b=document.createElement("button");
+      b.className="opt"; b.innerHTML=String.fromCharCode(65+i)+")  "+o;
+      b.onclick=()=>answer(i,b);
+      box.appendChild(b);
+    });
+    const fb=$("qfb"); fb.className="fb"; fb.innerHTML="";
+    $("qreveal").classList.remove("show");
+    tries = 0;
+    if(solved[cur]) restoreSolved();
+  } else {
+    qbox.classList.add("hidden");
+  }
+
+  $("prev").disabled = cur===0;
+  const last = cur===STEPS.length-1;
+  $("next").disabled = !solved[cur];
+  $("next").textContent = last ? "↺ Von vorne" : "Weiter →";
+  $("count").textContent = (cur+1)+" / "+STEPS.length;
+
+  [...prog.children].forEach((d,i)=>{
+    d.classList.toggle("cur", i===cur);
+    d.classList.toggle("done", i<cur);
+    d.disabled = i>maxReached();
+    d.style.opacity = i>maxReached() ? .35 : 1;
+  });
+}
+
+let tries = 0;
+function answer(i, btn){
+  const q = STEPS[cur].quiz;
+  if(i===q.correct){
+    markCorrect();
+  } else {
+    tries++;
+    btn.classList.add("wrong"); btn.disabled=true;
+    const fb=$("qfb"); fb.className="fb bad show";
+    fb.innerHTML = q.bad[Math.min(tries-1, q.bad.length-1)];
+    if(tries>=1) $("qreveal").classList.add("show");
+  }
+}
+function markCorrect(){
+  const q = STEPS[cur].quiz;
+  (q.reveal||[]).forEach(id=>{ const e=$(id); if(e){ e.classList.remove("hidden"); e.classList.add("popin"); } });
+  [...$("qopts").children].forEach((b,i)=>{
+    b.disabled=true;
+    if(i===q.correct) b.classList.add("right");
+  });
+  const fb=$("qfb"); fb.className="fb good show"; fb.innerHTML=q.ok;
+  $("qreveal").classList.remove("show");
+  solved[cur]=true;
+  $("next").disabled = false;
+  [...prog.children].forEach((d,i)=>{ d.disabled = i>maxReached(); d.style.opacity = i>maxReached()?.35:1; });
+}
+function restoreSolved(){ markCorrect(); }
+$("qreveal").onclick = markCorrect;
+
+/* ---------- Navigation ---------- */
+function go(i){ cur=Math.max(0,Math.min(STEPS.length-1,i)); render(); window.scrollTo({top:0,behavior:"smooth"}); }
+$("next").onclick = ()=>{
+  if(!solved[cur]) return;
+  if(cur===STEPS.length-1){ STEPS.forEach((st,i)=>{ solved[i] = !st.quiz; }); go(0); }
+  else go(cur+1);
+};
+$("prev").onclick = ()=>go(cur-1);
+document.addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight" && !$("next").disabled && cur<STEPS.length-1) $("next").click();
+  if(e.key==="ArrowLeft" && !$("prev").disabled) $("prev").click();
+});
+
+/* ---------- α/β Umschalter ---------- */
+document.querySelectorAll("#hwToggle button").forEach(b=>{
+  b.onclick=()=>{
+    const an=b.dataset.an;
+    document.querySelectorAll("#hwToggle button").forEach(x=>x.classList.toggle("on", x===b));
+    $("hw-alpha").classList.toggle("hidden", an!=="alpha");
+    $("hw-beta").classList.toggle("hidden", an!=="beta");
+    $("hw-name").textContent = an==="alpha" ? "α-D-Glucose" : "β-D-Glucose";
+  };
+});
+
+/* ---------- Vollbild ---------- */
+const fsBtn = $("fsBtn");
+function fsEl(){ return document.fullscreenElement || document.webkitFullscreenElement; }
+fsBtn.onclick = () => {
+  const r = document.documentElement;
+  if(fsEl()){ (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+  else{ const req = r.requestFullscreen || r.webkitRequestFullscreen; if(req) req.call(r); }
+};
+function fsSync(){
+  const on = !!fsEl();
+  document.body.classList.toggle("isfs", on);
+  fsBtn.textContent = on ? "⤡ Vollbild beenden" : "⤢ Vollbild";
+}
+document.addEventListener("fullscreenchange", fsSync);
+document.addEventListener("webkitfullscreenchange", fsSync);
+
+render();
+</script>
+</body>
+</html>
