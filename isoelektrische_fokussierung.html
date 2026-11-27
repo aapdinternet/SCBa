@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isoelektrische Fokussierung – interaktives Experiment</title>
+<style>
+  :root{
+    --bg:#f5f8fb; --panel:#ffffff; --ink:#1c2b3a; --muted:#7189a0;
+    --accent:#3d6b99; --accent-deep:#2b5079; --accent-soft:#eaf1f8; --border:#dee7f0;
+    --hl:#4a7fae; --hl-soft:#f2f7fb;
+    --ok:#3f7d63; --ok-soft:#eaf2ed; --ok-ink:#2f6350;
+    --err:#a8564f; --err-soft:#f7edeb; --err-ink:#7d3d38;
+    --warn-soft:#f4efe4; --warn-ink:#6d5a35;
+    --pos:#b0564d; --neg:#3d6b99; --neu:#3f7d63; --elec:#5b7c9c;
+    --lane:28px; --pill:.74rem;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1380px;margin:0 auto;padding:22px 20px 70px}
+  header{margin-bottom:16px}
+  .headrow{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+  h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:.92rem;margin:0}
+  #fsBtn{flex:0 0 auto;white-space:nowrap}
+
+  /* ---- Vollbild ---- */
+  html:fullscreen{background:var(--bg);overflow-y:auto}
+  html:-webkit-full-screen{background:var(--bg);overflow-y:auto}
+  .isfs .wrap{max-width:1760px;padding-top:14px}
+  .isfs h1{font-size:1.7rem}
+  .isfs{--pill:.82rem}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;
+        box-shadow:0 1px 2px rgba(28,43,58,.045);margin-bottom:14px}
+  .card > h2{font-size:1.02rem;margin:0 0 12px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+  .card > h2 .no{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:7px;
+        display:grid;place-items:center;font-size:.76rem;flex:0 0 auto}
+  /* Seitenraster: Hypothese oben über die volle Breite, darunter Probe (1/4) | Experiment (3/4),
+     zuunterst die Auswertung über die volle Breite. Reihenfolge im Quelltext ist egal (grid-areas). */
+  .page{display:grid;gap:16px;align-items:start;
+    grid-template-columns:minmax(240px,1fr) minmax(0,3fr);
+    grid-template-areas:"hyp hyp" "probe exp" "eval eval"}
+  #hypCard{grid-area:hyp;margin-bottom:0}
+  #probeCard{grid-area:probe;margin-bottom:0}
+  #expCard{grid-area:exp;margin-bottom:0}
+  #evalCard{grid-area:eval;margin-bottom:0}
+  @media (max-width:900px){
+    .page{grid-template-columns:1fr;grid-template-areas:"hyp" "probe" "exp" "eval"}
+  }
+  /* Hypothesenkarte innen mehrspaltig, damit die volle Breite genutzt wird */
+  .hypgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 24px;align-items:start}
+  @media (max-width:1080px){.hypgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:640px){.hypgrid{grid-template-columns:1fr}}
+  .hypgrid > *{min-width:0}
+  .hypgrid > details.ref{grid-column:1/-1}
+
+  .aufgabe{background:#fafcfe;border-left:3px solid var(--accent);border-radius:0 12px 12px 0;
+    padding:12px 16px;font-size:.9rem;margin-bottom:16px}
+  .aufgabe b{color:var(--accent-deep)}
+
+  /* ---- Apparatur ---- */
+  .stage{display:grid;grid-template-columns:74px minmax(0,1fr) 74px;align-items:center;margin:4px 0 0}
+  .stage > .gel{grid-column:2;grid-row:1}
+  .stage > .elec.left{grid-column:1;grid-row:1} .stage > .elec.right{grid-column:3;grid-row:1}
+  .stage > .ruler{grid-column:2;grid-row:2} .stage > .rulercap{grid-column:2;grid-row:3}
+  .elec{align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+  .elecbar{position:absolute;top:5%;bottom:5%;width:6px;background:var(--elec);border-radius:3px}
+  .elec.left .elecbar{right:0}
+  .elec.right .elecbar{left:0}
+  .elec .lead{position:absolute;top:50%;height:3px;background:var(--elec);width:34px}
+  .elec.left .lead{right:0}
+  .elec.right .lead{left:0}
+  .poleset{position:relative;z-index:2;display:flex;flex-direction:column;gap:5px;background:var(--bg);padding:5px 0}
+  .polebtn{font-family:inherit;font-weight:800;font-size:1.05rem;width:52px;height:38px;border-radius:10px;
+    border:1.5px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;transition:.15s;
+    display:grid;place-items:center;line-height:1}
+  .polebtn:hover{border-color:var(--accent)}
+  .polebtn.on[data-p="+"]{background:var(--pos);border-color:var(--pos);color:#fff;box-shadow:0 2px 8px rgba(176,86,77,.28)}
+  .polebtn.on[data-p="-"]{background:var(--neg);border-color:var(--neg);color:#fff;box-shadow:0 2px 8px rgba(61,107,153,.28)}
+
+  .gel{position:relative;border:1.5px solid #a8bdd2;border-radius:8px;
+    background:linear-gradient(90deg,
+      #ffd9d9 0%, #ffe3cf 12%, #fdf0c8 26%, #ecf7cd 40%,
+      #d9f5df 50%, #cff2ef 62%, #d5e6fb 76%, #e0dcfb 88%, #ecd9f7 100%);}
+  .gel .phlab{position:absolute;top:4px;font-size:.72rem;font-weight:700;color:#42566a;opacity:.7}
+  .gel .phlab.l{left:7px} .gel .phlab.r{right:7px}
+  .lanes{position:relative;padding:22px 0 6px}
+  .lane{position:relative;height:var(--lane)}
+  .lane + .lane{border-top:1px solid rgba(255,255,255,.55)}
+  .pimark{position:absolute;top:2px;bottom:2px;width:0;border-left:2px dashed rgba(51,65,85,.55);transform:translateX(-1px);
+    display:none}
+  .showpi .pimark{display:block}
+  .part{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;
+    background:#fff;border:1.5px solid #b7c6d6;border-radius:99px;padding:2px 9px;
+    font-size:var(--pill);font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(28,43,58,.16);z-index:3}
+  .part .q{width:16px;height:16px;flex:0 0 16px;padding:0;border-radius:50%;
+    font-size:.68rem;font-weight:800;color:#fff;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;text-align:center}
+  .part .q.hide{display:none}
+  .part .pival{font-weight:600;color:#5f7a94;font-size:.9em}
+  .part.p{border-color:var(--pos)} .part.p .q{background:var(--pos)}
+  .part.n{border-color:var(--neg)} .part.n .q{background:var(--neg)}
+  .part.z{border-color:var(--neu);background:#f2f8f4} .part.z .q{background:var(--neu)}
+  .part.done{box-shadow:0 0 0 3px rgba(63,125,99,.2),0 2px 6px rgba(28,43,58,.14)}
+  .part.gone{opacity:.55;filter:grayscale(.35)}
+  .part.edgeL{transform:translate(0,-50%)} .part.edgeR{transform:translate(-100%,-50%)}
+
+  .ruler{position:relative;height:26px;margin-top:4px}
+  .tick{position:absolute;transform:translateX(-50%);font-size:.66rem;color:var(--muted);text-align:center}
+  .tick.first{transform:translateX(-2px)} .tick.last{transform:translateX(calc(-100% + 2px))}
+  .tick::before{content:"";display:block;width:1px;height:6px;background:#c3d1de;margin:0 auto 2px}
+  .tick.first::before{margin-left:2px} .tick.last::before{margin-right:2px}
+  .rulercap{text-align:center;font-size:.7rem;color:var(--muted);margin-top:-2px}
+
+  .setupnote{display:none;margin-top:12px;border-radius:10px;padding:8px 12px;font-size:.82rem;
+    background:var(--accent-soft);color:var(--accent-deep)}
+  .setupnote.show{display:block}
+
+  .runctl{display:flex;gap:9px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  button.ctl{font-family:inherit;font-size:.88rem;font-weight:600;border-radius:10px;
+    padding:9px 16px;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--ink);transition:.15s}
+  button.ctl:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  button.ctl.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.ctl.primary:hover:not(:disabled){background:var(--accent-deep);color:#fff}
+  button.ctl:disabled{opacity:.4;cursor:not-allowed}
+  .speed{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted)}
+  .speedbtns{display:flex;gap:0;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff}
+  .speedbtns button{font-family:inherit;font-size:.8rem;font-weight:600;border:none;background:#fff;color:var(--muted);
+    padding:8px 11px;cursor:pointer;transition:.13s;line-height:1}
+  .speedbtns button + button{border-left:1.5px solid var(--border)}
+  .speedbtns button:hover{background:var(--accent-soft);color:var(--accent-deep)}
+  .speedbtns button.on{background:var(--accent);color:#fff}
+
+  /* ---- AS-Auswahl ---- */
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .chip{font-family:inherit;font-size:.78rem;font-weight:600;border:1.5px solid var(--border);background:#fff;
+    color:var(--ink);border-radius:8px;padding:5px 9px;cursor:pointer;transition:.13s;display:flex;align-items:center;gap:5px}
+  .chip:hover{border-color:var(--accent)}
+  .chip .dotc{width:9px;height:9px;border-radius:99px;flex:0 0 auto}
+  .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+  .preset{font-family:inherit;font-size:.73rem;border:1px solid var(--border);background:#f7fafc;border-radius:7px;
+    padding:4px 9px;cursor:pointer;color:var(--muted)}
+  .preset:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ---- Hypothese ---- */
+  .qblock{margin-bottom:13px}
+  .qblock > p{margin:0 0 6px;font-size:.85rem;font-weight:600}
+  .opts{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+  .opt{font-family:inherit;font-size:.79rem;border:1.5px solid #d3e0ec;background:#fff;border-radius:9px;
+    padding:7px 11px;cursor:pointer;color:var(--ink);transition:.13s;text-align:left;width:100%}
+  .opt:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .opt.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+  textarea{width:100%;font-family:inherit;font-size:.84rem;border:1.5px solid var(--border);border-radius:10px;
+    padding:9px 11px;resize:vertical;min-height:66px;color:inherit;background:#fff}
+  textarea:focus{outline:none;border-color:var(--accent)}
+  .hypcard{border-color:#d7e4f0;background:#f8fbfd}
+  .orderpick{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+  .obtn{font-family:inherit;font-size:.76rem;border:1.5px solid var(--border);background:#fff;border-radius:8px;
+    padding:4px 9px;cursor:pointer;color:var(--ink)}
+  .obtn:hover{border-color:var(--accent)}
+  .obtn.used{opacity:.35;pointer-events:none}
+  .orderline{margin-top:7px;font-size:.8rem;background:#fff;border:1.5px dashed #d3e0ec;border-radius:9px;
+    padding:7px 10px;min-height:34px;color:var(--muted)}
+  .orderline b{color:var(--ink)}
+  .why{display:block;margin-top:8px}
+  .why > span{display:block;font-size:.71rem;font-weight:700;color:var(--accent-deep);margin-bottom:3px;
+    text-transform:uppercase;letter-spacing:.04em}
+  .why textarea{min-height:42px;font-size:.8rem;padding:6px 9px;border-color:#d3e0ec;overflow:hidden}
+  .why textarea:focus{border-color:var(--accent)}
+  .mywhy{display:block;margin-top:7px;font-size:.8rem;font-style:italic;opacity:.85}
+  .whyfb{display:block;margin-top:4px;font-size:.8rem;font-weight:600;border-radius:8px;padding:5px 9px}
+  .whyfb.good{background:var(--ok-soft);color:var(--ok-ink)}
+  .whyfb.warn{background:var(--warn-soft);color:var(--warn-ink)}
+  .whyfb.bad{background:var(--err-soft);color:var(--err-ink)}
+  .check.warn{background:var(--warn-soft);color:var(--warn-ink)}
+
+  /* Hinweis nach dem Lauf – neben dem Titel, kein automatischer Sprung */
+  .donehint{display:none;margin-left:auto;align-items:center;gap:9px;font-size:.8rem;font-weight:700;
+    background:var(--accent-soft);color:var(--accent-deep);border-radius:99px;padding:4px 6px 4px 13px;animation:rise .35s ease}
+  .donehint.show{display:inline-flex}
+  .donehint button{font-family:inherit;font-size:.76rem;font-weight:700;border:none;cursor:pointer;
+    background:var(--accent);color:#fff;border-radius:99px;padding:5px 11px;transition:.13s}
+  .donehint button:hover{background:var(--accent-deep)}
+  @keyframes rise{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  /* ---- Nachschlagen (in der Hypothese) ---- */
+  details.ref{margin-top:10px;border-top:1px solid #dbe6f1;padding-top:10px}
+  details.ref > summary{cursor:pointer;font-size:.82rem;font-weight:700;color:var(--accent-deep);list-style:none;
+    display:flex;align-items:center;gap:6px}
+  details.ref > summary::-webkit-details-marker{display:none}
+  details.ref > summary::before{content:"▸";transition:.15s}
+  details.ref[open] > summary::before{transform:rotate(90deg)}
+  .refbody{font-size:.83rem;margin-top:8px}
+  .refbody .rule{margin-bottom:4px}
+  .pigrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:2px 12px;margin-top:6px}
+  .pigrid div{display:flex;justify-content:space-between;font-size:.77rem;border-bottom:1px solid var(--border);padding:2px 1px}
+  .pigrid .v{font-variant-numeric:tabular-nums;font-weight:700}
+
+  /* ---- Auswertung ---- */
+  .check{display:flex;gap:9px;align-items:flex-start;font-size:.85rem;padding:9px 11px;border-radius:10px;margin-bottom:7px}
+  .check.ok{background:var(--ok-soft);color:var(--ok-ink)}
+  .check.no{background:var(--err-soft);color:var(--err-ink)}
+  .check.info{background:#f1f5f9;color:#44586c}
+  .check .m{flex:0 0 auto;font-weight:800}
+  .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0 14px;align-items:start}
+  .verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:0 14px;align-items:start}
+  .verdict{font-size:.87rem;padding:11px 13px;border-radius:11px;margin-top:11px;background:#f7fafd;
+    border-left:3px solid var(--accent)}
+  .verdict b{color:var(--accent)}
+  .small{font-size:.78rem;color:var(--muted);margin:8px 0 0}
+  .flash{animation:flash .8s ease}
+  @keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="headrow">
+    <div>
+      <h1>Isoelektrische Fokussierung (IEF)</h1>
+      <p class="sub">Aminosäure-Mischung · pH-Gradient 0 – 14 · Pole selbst wählen · Hypothese aufstellen und prüfen</p>
+    </div>
+    <button id="fsBtn" class="ctl">⤢ Vollbild</button>
+  </div>
+</header>
+
+<div class="aufgabe">
+  <b>Aufgabe.</b> Eine Mischung mehrerer Aminosäuren wird in einer Lösung mit niedrigem pH-Wert gelöst und links auf ein
+  Gel aufgetragen, das einen pH-Gradienten von 0 bis 14 besitzt. Man legt eine Spannung an und beobachtet was passiert.
+  Wo sollen + Pol und – Pol angelegt werden? Warum wandern die Aminosäuren durch das Gel? Stoppen sie irgendwo?
+  Stelle zuerst eine Hypothese auf, dann starte das Experiment.
+</div>
+
+<div class="page">
+
+    <!-- ================= 2 · PROBE (linkes Viertel) ================= -->
+    <div class="card" id="probeCard">
+      <h2><span class="no">2</span>Probe zusammenstellen</h2>
+      <p style="margin:0 0 7px;font-size:.85rem">Welche Aminosäuren sind in der Mischung?<br>
+        <span style="color:var(--muted)">(<span id="selCount">3</span> gewählt)</span></p>
+      <div class="presets">
+        <button class="preset" data-preset="task">Aufgabe: Asp · Lys · Thr</button>
+        <button class="preset" data-preset="all">alle 20</button>
+        <button class="preset" data-preset="acid">saure</button>
+        <button class="preset" data-preset="base">basische</button>
+        <button class="preset" data-preset="spread">gut trennbare 6</button>
+      </div>
+      <div class="chips" id="chips"></div>
+      <p class="small">Die Probe wird immer links bei pH 0 aufgetragen – sie ist ja in Säure gelöst.</p>
+    </div>
+
+    <!-- ================= 3 · EXPERIMENT (rechte drei Viertel) ================= -->
+    <div class="card" id="expCard">
+      <h2><span class="no">3</span>Experiment
+        <span class="donehint" id="doneHint">✓ Lauf beendet
+          <button id="toEval">Auswertung ansehen ↓</button></span>
+      </h2>
+
+      <div class="stage">
+        <div class="elec left">
+          <div class="elecbar"></div><div class="lead"></div>
+          <div class="poleset">
+            <button class="polebtn" data-side="L" data-p="+">+</button>
+            <button class="polebtn" data-side="L" data-p="-">–</button>
+          </div>
+        </div>
+
+        <div class="gel" id="gel">
+          <span class="phlab l">pH 0</span><span class="phlab r">pH 14</span>
+          <div class="lanes" id="lanes"></div>
+        </div>
+
+        <div class="elec right">
+          <div class="elecbar"></div><div class="lead"></div>
+          <div class="poleset">
+            <button class="polebtn" data-side="R" data-p="+">+</button>
+            <button class="polebtn" data-side="R" data-p="-">–</button>
+          </div>
+        </div>
+
+        <div class="ruler" id="ruler"></div>
+        <div class="rulercap">pH-Gradient im Gel</div>
+      </div>
+
+      <div class="setupnote" id="fieldinfo"></div>
+
+      <div class="runctl">
+        <button class="ctl primary" id="startBtn">▶ Spannung anlegen</button>
+        <button class="ctl" id="resetBtn">↺ Zurücksetzen</button>
+        <button class="ctl" id="piBtn">pI-Werte einblenden</button>
+        <div class="speed">Tempo
+          <div class="speedbtns" id="speedBtns">
+            <button data-s="0.25">0,25×</button>
+            <button data-s="0.5" class="on">0,5×</button>
+            <button data-s="0.75">0,75×</button>
+            <button data-s="1">1×</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= 1 · HYPOTHESE (volle Breite, zuoberst) ================= -->
+    <div class="card hypcard" id="hypCard">
+      <h2><span class="no">1</span>Hypothese aufstellen</h2>
+      <p class="small" style="margin-top:-6px">Erst tippen, dann Spannung anlegen – danach wird deine Vorhersage
+        automatisch überprüft.</p>
+
+      <div class="hypgrid">
+      <div class="qblock" data-h="form">
+        <p>a) In welcher ionischen Form liegen die Aminosäuren beim Auftragen bei pH 0 vor?</p>
+        <div class="opts">
+          <button class="opt" data-v="kation">Kation (+)</button>
+          <button class="opt" data-v="zwitter">Zwitterion (netto 0)</button>
+          <button class="opt" data-v="anion">Anion (–)</button>
+        </div>
+        <label class="why"><span>Kurze Begründung</span>
+          <textarea id="whyForm" rows="2"></textarea></label>
+      </div>
+
+      <div class="qblock" data-h="dir">
+        <p>b) Was passiert mit den Aminosäuren nach Anlegen der Spannung?</p>
+        <div class="opts">
+          <button class="opt" data-v="right">wandern nach rechts</button>
+          <button class="opt" data-v="left">wandern nach links</button>
+          <button class="opt" data-v="none">gar nichts</button>
+        </div>
+        <label class="why"><span>Kurze Begründung</span>
+          <textarea id="whyDir" rows="2"></textarea></label>
+      </div>
+
+      <div class="qblock" data-h="fate">
+        <p>c) Was passiert mit den Aminosäuren auf dem Weg durchs Gel?</p>
+        <div class="opts">
+          <button class="opt" data-v="pI">sie stoppen bei ihrem pI</button>
+          <button class="opt" data-v="off">sie laufen aus dem Gel</button>
+          <button class="opt" data-v="speed">sie wandern unterschiedlich schnell</button>
+        </div>
+        <label class="why"><span>Kurze Begründung</span>
+          <textarea id="whyFate" rows="2"></textarea></label>
+      </div>
+
+      <div class="qblock" id="orderBlock">
+        <p>d) Wie ist die Verteilung der AS am Ende des Experiments auf dem Gel – von links nach rechts?</p>
+        <div class="orderpick" id="orderPick"></div>
+        <div class="orderline" id="orderLine">noch nichts gewählt</div>
+        <button class="preset" id="orderClear" style="margin-top:6px">Reihenfolge löschen</button>
+      </div>
+
+      <details class="ref">
+        <summary>Nachschlagen: Merksätze &amp; pI-Werte</summary>
+        <div class="refbody">
+          <div class="rule">1 · pH &lt; pI → <b style="color:var(--pos)">Kation (+)</b>, wandert zur Kathode (–).</div>
+          <div class="rule">2 · pH &gt; pI → <b style="color:var(--neg)">Anion (–)</b>, wandert zur Anode (+).</div>
+          <div class="rule">3 · pH = pI → <b style="color:var(--neu)">Zwitterion, Nettoladung 0</b> → keine Kraft im Feld,
+            die Wanderung stoppt.</div>
+          <div id="piRef" style="margin-top:9px"></div>
+        </div>
+      </details>
+      </div>
+    </div>
+
+    <!-- ================= 4 · AUSWERTUNG (volle Breite, zuunterst) ================= -->
+    <div class="card" id="evalCard" style="display:none">
+      <h2><span class="no">4</span>Auswertung deiner Hypothese</h2>
+      <div id="evalWrap"></div>
+      <button class="ctl" id="againBtn" style="margin-top:10px">↻ Neue Runde (Hypothese behalten)</button>
+    </div>
+</div>
+</div>
+
+<script>
+/* ============================================================
+   20 proteinogene Aminosäuren mit isoelektrischen Punkten
+   (Werte nach Lehninger, freie Aminosäuren in Wasser)
+   ============================================================ */
+const AAS = [
+  {k:"Gly", n:"Glycin",        pI:5.97, t:"neutral"},
+  {k:"Ala", n:"Alanin",        pI:6.01, t:"neutral"},
+  {k:"Val", n:"Valin",         pI:5.97, t:"neutral"},
+  {k:"Leu", n:"Leucin",        pI:5.98, t:"neutral"},
+  {k:"Ile", n:"Isoleucin",     pI:6.02, t:"neutral"},
+  {k:"Pro", n:"Prolin",        pI:6.48, t:"neutral"},
+  {k:"Phe", n:"Phenylalanin",  pI:5.48, t:"neutral"},
+  {k:"Trp", n:"Tryptophan",    pI:5.89, t:"neutral"},
+  {k:"Met", n:"Methionin",     pI:5.74, t:"neutral"},
+  {k:"Ser", n:"Serin",         pI:5.68, t:"neutral"},
+  {k:"Thr", n:"Threonin",      pI:5.87, t:"neutral"},
+  {k:"Cys", n:"Cystein",       pI:5.07, t:"neutral"},
+  {k:"Tyr", n:"Tyrosin",       pI:5.66, t:"neutral"},
+  {k:"Asn", n:"Asparagin",     pI:5.41, t:"neutral"},
+  {k:"Gln", n:"Glutamin",      pI:5.65, t:"neutral"},
+  {k:"Asp", n:"Asparaginsäure",pI:2.77, t:"sauer"},
+  {k:"Glu", n:"Glutaminsäure", pI:3.22, t:"sauer"},
+  {k:"His", n:"Histidin",      pI:7.59, t:"basisch"},
+  {k:"Lys", n:"Lysin",         pI:9.74, t:"basisch"},
+  {k:"Arg", n:"Arginin",       pI:10.76,t:"basisch"}
+];
+const BY = Object.fromEntries(AAS.map(a=>[a.k,a]));
+const TCOL = {sauer:"#b0564d", neutral:"#3f7d63", basisch:"#3d6b99"};
+const LOADX = 0.012;                     // Auftragsort: immer links bei pH 0
+
+const st = {
+  sel:["Asp","Lys","Thr"],
+  poleL:null, poleR:null,
+  running:false, ran:false, showPI:false, showCharge:false, speed:0.5,
+  parts:[],
+  hyp:{form:null, dir:null, fate:null, order:[]}
+};
+const $ = id=>document.getElementById(id);
+const X2PH = x => x*14;
+const PH2X = p => p/14;
+
+/* ---------- statische Oberfläche ---------- */
+(function(){
+  let h="";
+  for(let p=0;p<=14;p++){
+    const c = p===0?" first":p===14?" last":"";
+    h+=`<div class="tick${c}" style="left:${PH2X(p)*100}%">${p}</div>`;
+  }
+  $("ruler").innerHTML=h;
+  $("chips").innerHTML = AAS.map(a=>
+    `<button class="chip" data-k="${a.k}" title="${a.n}"><span class="dotc" style="background:${TCOL[a.t]}"></span>${a.k}</button>`
+  ).join("");
+  $("piRef").innerHTML = `<div class="pigrid">`+
+    AAS.slice().sort((a,b)=>a.pI-b.pI).map(a=>
+      `<div><span><b>${a.k}</b></span><span class="v" style="color:${TCOL[a.t]}">${a.pI.toFixed(2).replace('.',',')}</span></div>`
+    ).join("")+`</div>
+    <p class="small">Sortiert nach steigendem pI – genau die Reihenfolge der Banden von links nach rechts.
+    Rot = saure, grün = neutrale, blau = basische Seitenkette.</p>`;
+})();
+
+/* ============================================================
+   Chemie:  q ~ tanh((pI – pH)/1.5)
+     pH < pI → q > 0 (Kation)  → wandert zur Kathode (– Pol)
+     pH > pI → q < 0 (Anion)   → wandert zur Anode  (+ Pol)
+     pH = pI → q = 0 (Zwitterion, netto neutral) → steht still
+   D = +1, wenn der – Pol rechts liegt; D = –1, wenn er links liegt
+   ============================================================ */
+function fieldDir(){
+  if(!st.poleL || !st.poleR) return 0;
+  if(st.poleL === st.poleR) return 0;
+  return (st.poleR === "-") ? 1 : -1;
+}
+function charge(pI, ph){ return Math.tanh((pI-ph)/1.5); }
+
+function predict(){
+  const D=fieldDir();
+  const out = st.sel.map(k=>{
+    const a=BY[k];
+    let dir=0, fate="stay", endX=LOADX;
+    if(D!==0){                                   // bei pH 0 sind alle AS Kationen
+      dir=D;
+      if(D===1){ fate="pI"; endX=PH2X(a.pI); }   // fokussiert
+      else     { fate="off"; endX=0; }           // läuft links aus dem Gel
+    }
+    return {k, pI:a.pI, dir, fate, endX};
+  });
+  const startDir = D===0 || out.length===0 ? "none" : (D===1?"right":"left");
+  const fate = out.length===0 ? "stay" : out[0].fate;
+  const order = out.slice().sort((a,b)=>a.endX-b.endX).map(o=>o.k);
+  return {D, out, startDir, fate, order};
+}
+
+/* ---------- Rendering ---------- */
+function laneHeight(){ const n=st.sel.length; return n>14?22:n>9?25:n>6?29:34; }
+function renderGel(){
+  document.documentElement.style.setProperty("--lane", laneHeight()+"px");
+  const lanes=$("lanes");
+  if(st.sel.length===0){
+    lanes.innerHTML=`<div style="padding:26px 0;text-align:center;font-size:.85rem;color:#64748b">
+      Wähle rechts mindestens eine Aminosäure aus.</div>`;
+    return;
+  }
+  lanes.innerHTML = st.parts.map(p=>{
+    const a=BY[p.k];
+    return `<div class="lane">
+      <div class="pimark" style="left:${PH2X(a.pI)*100}%"></div>
+      <div class="part" id="p-${p.k}" style="left:${p.x*100}%"><span class="q"></span><span class="lbl">${p.k}</span></div>
+    </div>`;
+  }).join("");
+  updateParts();
+}
+function updateParts(){
+  const D=fieldDir(), showQ=st.showCharge;
+  st.parts.forEach(p=>{
+    const el=$("p-"+p.k); if(!el) return;
+    const a=BY[p.k], q=charge(a.pI, X2PH(p.x));
+    el.style.left=(p.x*100)+"%";
+    let cls="part";
+    if(!showQ) ;                                  // vor dem Anlegen der Spannung: neutrale Darstellung
+    else if(p.status==="focus") cls+=" z done";
+    else cls += q>0.02?" p": q<-0.02?" n":" z";
+    el.className=cls;
+    // ausserhalb des Gels sanft ausblenden, dann ganz verschwinden
+    const over = p.x<0 ? -p.x : p.x>1 ? p.x-1 : 0;
+    el.style.opacity = over ? Math.max(0, 1-over/OUT).toFixed(3) : "";
+    el.style.visibility = (p.status==="gone") ? "hidden" : "";
+    el.querySelector(".q").className = showQ ? "q" : "q hide";
+    const sym = p.status==="focus" ? "0" : q>0.02?"+" : q<-0.02?"−" : "0";
+    let arrow="";
+    if(st.running && p.status==="move" && D!==0 && Math.abs(q)>0.02) arrow = (Math.sign(q)*D)>0 ? " →" : " ←";
+    el.querySelector(".q").textContent=sym;
+    const piTxt = st.showPI ? ` <span class="pival">pI ${a.pI.toFixed(2).replace('.',',')}</span>` : "";
+    el.querySelector(".lbl").innerHTML = p.k + arrow + piTxt;
+  });
+}
+function renderPoles(){
+  document.querySelectorAll(".polebtn").forEach(b=>{
+    b.classList.toggle("on", (b.dataset.side==="L"?st.poleL:st.poleR)===b.dataset.p);
+  });
+}
+function renderChips(){
+  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("on", st.sel.includes(c.dataset.k)));
+  $("selCount").textContent=st.sel.length;
+}
+function renderField(){                 // dezenter Hinweis nur, wenn der Aufbau noch nicht funktioniert
+  const el=$("fieldinfo");
+  if(!st.poleL || !st.poleR){
+    el.textContent="Wähle an beiden Elektroden einen Pol – sonst fliesst kein Strom.";
+    el.classList.add("show");
+  }else if(st.poleL===st.poleR){
+    el.textContent="Beide Elektroden tragen denselben Pol – ohne Spannungsdifferenz gibt es kein Feld.";
+    el.classList.add("show");
+  }else{
+    el.textContent=""; el.classList.remove("show");
+  }
+}
+function renderOrderPick(){
+  const blk=$("orderBlock"), usable = st.sel.length>=2 && st.sel.length<=8;
+  blk.style.display = usable ? "" : "none";
+  if(!usable){ st.hyp.order=[]; return; }
+  st.hyp.order = st.hyp.order.filter(k=>st.sel.includes(k));
+  $("orderPick").innerHTML = st.sel.map(k=>
+    `<button class="obtn ${st.hyp.order.includes(k)?"used":""}" data-o="${k}">${k}</button>`).join("");
+  $("orderLine").innerHTML = st.hyp.order.length
+    ? "links → rechts: <b>"+st.hyp.order.join(" · ")+"</b>"
+    : "noch nichts gewählt – klicke die Kürzel in der erwarteten Reihenfolge an (links zuerst)";
+}
+function renderAll(){ renderPoles(); renderChips(); renderField(); renderGel(); renderOrderPick(); }
+
+/* ---------- Simulation ---------- */
+function resetParts(){
+  st.parts = st.sel.map(k=>({k, x:LOADX, status:"move", edge:null}));
+  st.ran=false; st.running=false; st.showCharge=false;
+  $("startBtn").textContent="▶ Spannung anlegen";
+  $("startBtn").disabled=false;
+  $("evalCard").style.display="none";
+  hideHint();
+}
+const OUT=0.055;          // Strecke ausserhalb des Gels, auf der die AS ausblenden
+let raf=null, last=0;
+function tick(ts){
+  if(!st.running) return;
+  const dt=Math.min(0.05,(ts-last)/1000||0); last=ts;
+  const D=fieldDir();
+  let moving=false;
+  st.parts.forEach(p=>{
+    if(p.status!=="move" || D===0) return;
+    const a=BY[p.k], q=charge(a.pI, X2PH(p.x));
+    p.x += 0.13*q*D*st.speed*dt;
+    if(p.x<=-OUT){ p.x=-OUT; p.status="gone"; p.edge="L"; }        // links aus dem Gel gelaufen
+    else if(p.x>=1+OUT){ p.x=1+OUT; p.status="gone"; p.edge="R"; } // rechts aus dem Gel gelaufen
+    else if(p.x>0 && p.x<1 && Math.abs(X2PH(p.x)-a.pI)<0.03){ p.x=PH2X(a.pI); p.status="focus"; }
+    else moving=true;
+  });
+  updateParts();
+  if(!moving || D===0){ finish(); return; }
+  raf=requestAnimationFrame(tick);
+}
+function start(){
+  if(st.sel.length===0) return;
+  if(fieldDir()===0){ st.running=false; st.ran=true; showEval(); return; }
+  st.running=true; st.ran=false; st.showCharge=true; last=performance.now();
+  $("startBtn").textContent="… läuft"; $("startBtn").disabled=true;
+  updateParts();
+  raf=requestAnimationFrame(tick);
+}
+function finish(){
+  cancelAnimationFrame(raf);
+  st.running=false; st.ran=true;
+  $("startBtn").disabled=false; $("startBtn").textContent="▶ nochmals";
+  updateParts(); showEval();
+}
+
+/* ---------- Auswertung ---------- */
+const FORMTXT={kation:"Kation (+)", zwitter:"Zwitterion (netto 0)", anion:"Anion (–)"};
+const DIRTXT={right:"wandern nach rechts", left:"wandern nach links", none:"gar nichts"};
+const FATETXT={pI:"sie stoppen bei ihrem pI", off:"sie laufen aus dem Gel",
+               speed:"sie wandern unterschiedlich schnell", stay:"gar nichts – ohne Feld bleiben sie liegen"};
+
+/* ---------- Begründungen prüfen ----------
+   Kein „Verstehen“, sondern eine Plausibilitätsprüfung: Erkennt der Text die erwarteten
+   Fachbegriffe? Und ist überhaupt ein sinnvoller Text eingegeben worden?            */
+const WHYKEYS = {
+  whyForm:[
+    {n:"Protonierung im sauren Milieu", re:/proton|h\+|h₃o|h3o|sauer|säure|saure/},
+    {n:"Aminogruppe –NH₃⁺",             re:/nh3|nh₃|amino/},
+    {n:"Carboxylgruppe –COOH",          re:/cooh|carboxyl|coo/},
+    {n:"positive Nettoladung / Kation", re:/kation|positiv|plusladung|\+ ?ladung/}
+  ],
+  whyDir:[
+    {n:"positive Ladung der Aminosäure", re:/kation|positiv|\+/},
+    {n:"Kathode bzw. Minuspol",          re:/kathode|minuspol|minus ?pol|– ?pol|- ?pol|negativ/},
+    {n:"Anziehung im elektrischen Feld", re:/feld|angezogen|anziehung|zieh|spannung|kraft/},
+    {n:"Richtung links/rechts",          re:/rechts|links/}
+  ],
+  whyFate:[
+    {n:"der pH-Wert ändert sich unterwegs", re:/ph.{0,20}(steig|änder|nimmt zu|höher|wächst|grösser|größer)|gradient/},
+    {n:"die Ladung wird kleiner / null",    re:/nettoladung|ladung.{0,20}(null|neutral|ab|weniger|verlier|kleiner)|neutral|zwitterion|ungeladen/},
+    {n:"der isoelektrische Punkt (pI)",     re:/\bpi\b|isoelektr/},
+    {n:"die Wanderung hört auf",            re:/stopp|hält|halt |steht|bleibt stehen|fokussier|keine kraft/}
+  ]
+};
+function textIssue(s){
+  const t=s.toLowerCase();
+  const words=t.split(/[^a-zäöüß]+/).filter(Boolean);
+  const letters=words.join("");
+  if(letters.length<8) return "der Text ist zu kurz für eine Begründung";
+  if(/asdf|sdfg|dfgh|fghj|qwer|wert[yz]|ertz|rtzu|yxcv|xcvb|cvbn|hjkl|jklö|uiop|zuio|qwertz|1234/.test(t))
+    return "das sieht nach einer zufälligen Tastatureingabe aus";
+  const vow=(letters.match(/[aeiouäöü]/g)||[]).length/letters.length;
+  const run=Math.max(...words.map(w=>Math.max(...(w.match(/[^aeiouäöüy]+/g)||[""]).map(x=>x.length))));
+  let sig=0;
+  if(vow<0.22) sig++;
+  if(run>=5) sig++;
+  if(words.length<2 && letters.length>=12) sig++;
+  return sig>=2 ? "das ergibt keinen lesbaren Text" : null;
+}
+function judgeWhy(id){
+  const v=$(id).value.trim();
+  if(!v) return {state:"none"};
+  const issue=textIssue(v);
+  if(issue) return {state:"bad", issue, v};
+  const t=v.toLowerCase();
+  const hit=WHYKEYS[id].filter(k=>k.re.test(t)), miss=WHYKEYS[id].filter(k=>!k.re.test(t));
+  return {state: hit.length>=2 ? "good" : hit.length===1 ? "weak" : "off", hit, miss, v};
+}
+function whyBlock(id){
+  const j=judgeWhy(id);
+  if(j.state==="none") return {mark:null, html:`<span class="mywhy">Keine Begründung eingetragen – schreib beim nächsten Mal einen Satz dazu.</span>`};
+  const quote=`<span class="mywhy">Deine Begründung: „${escapeHTML(j.v)}“</span>`;
+  const miss = j.miss ? j.miss.map(m=>m.n).join(", ") : "";
+  const hitT = j.hit && j.hit.length ? j.hit.map(m=>m.n).join(", ") : "";
+  if(j.state==="bad")
+    return {mark:false, html:quote+`<span class="whyfb bad">✗ Begründung nicht bewertbar – ${j.issue}.</span>`};
+  if(j.state==="off")
+    return {mark:false, html:quote+`<span class="whyfb bad">✗ Begründung: Hier fehlt noch die Chemie. Erwartet wären Stichworte wie ${miss}.</span>`};
+  if(j.state==="weak")
+    return {mark:"part", html:quote+`<span class="whyfb warn">~ Begründung auf dem richtigen Weg: ${hitT} kommt vor. Es fehlt noch: ${miss}.</span>`};
+  return {mark:true, html:quote+`<span class="whyfb good">✓ Begründung trifft den Kern: ${hitT}.</span>`};
+}
+
+function showEval(){
+  const P=predict(), h=st.hyp, out=[];
+  const row=(ok,txt)=>`<div class="check ${ok===null?"info":ok==="part"?"warn":ok?"ok":"no"}"><span class="m">${ok===null?"i":ok==="part"?"~":ok?"✓":"✗"}</span><span>${txt}</span></div>`;
+  /* Auswahl UND Begründung fliessen in die Bewertung ein */
+  const verdictOf=(choiceOk, w)=> !choiceOk ? false : (w.mark===false||w.mark==="part") ? "part" : true;
+
+  if(h.form){
+    const w=whyBlock("whyForm");
+    out.push(row(verdictOf(h.form==="kation", w),
+      `<b>a) Ionische Form:</b> du hast „${FORMTXT[h.form]}“ getippt – richtig ist <b>Kation (+)</b>. `+
+      `Bei pH 0 liegt die Carboxylgruppe undissoziiert als –COOH vor, die Aminogruppe ist protoniert (–NH₃⁺). `+
+      `Es bleibt eine positive Nettoladung; bei Lys und Arg ist die Seitenkette zusätzlich protoniert (+2). `+
+      `Ein Zwitterion mit Nettoladung 0 entsteht erst am pI.`+ w.html));
+  }
+  if(h.dir){
+    const w=whyBlock("whyDir");
+    out.push(row(verdictOf(h.dir===P.startDir, w),
+      `<b>b) Nach dem Anlegen der Spannung:</b> du hast „${DIRTXT[h.dir]}“ getippt – tatsächlich <b>${DIRTXT[P.startDir]}</b>. `+
+      (P.D===0
+        ? "Ohne Spannungsdifferenz gibt es kein elektrisches Feld – die Kationen bleiben liegen."
+        : `Kationen wandern zur Kathode (– Pol), die hier <b>${P.D===1?"rechts":"links"}</b> liegt.`)
+      + w.html));
+  }
+  if(h.fate){
+    const extra = h.fate==="speed"
+      ? " <b>Aber Achtung:</b> Unterschiedlich schnell wandern sie zwar wirklich – je weiter eine Aminosäure von ihrem pI "+
+        "entfernt ist, desto stärker ist sie geladen und desto schneller läuft sie. Getrennt wird in der IEF aber nicht nach "+
+        "Tempo, sondern nach dem <b>Ort, an dem sie stehenbleiben</b>. Eine langsame und eine schnelle Aminosäure mit gleichem "+
+        "pI landen an derselben Stelle."
+      : "";
+    const w=whyBlock("whyFate");
+    out.push(row(verdictOf(h.fate===P.fate, w),
+      `<b>c) Auf dem Weg durchs Gel:</b> du hast „${FATETXT[h.fate]}“ getippt – tatsächlich <b>${FATETXT[P.fate]}</b>. `+
+      fateExplain(P) + extra + w.html));
+  }
+  if(h.order.length && h.order.length===st.sel.length){
+    const ok = h.order.join()===P.order.join();
+    const detail = P.fate==="pI"
+      ? `Die tatsächliche Reihenfolge folgt exakt den steigenden pI-Werten: <b>${P.order.map(k=>k+" ("+BY[k].pI.toFixed(2).replace('.',',')+")").join(" · ")}</b>.`
+      : P.fate==="off"
+        ? "Alle Aminosäuren sind an den linken Rand gelaufen – eine Trennung entsteht gar nicht erst."
+        : "Ohne Feld bleibt alles am Auftragsort – es entsteht keine Reihenfolge.";
+    out.push(row(ok, `<b>d) Reihenfolge:</b> deine Vorhersage <b>${h.order.join(" · ")}</b>. ${detail}`));
+  }
+  $("evalWrap").innerHTML =
+    `<div class="checks">`+ (out.join("") ||
+      `<div class="check info"><span class="m">i</span><span>Du hast noch keine Hypothese eingetragen – trage sie oben ein und starte erneut.</span></div>`) +
+    `</div><div class="verdicts">`+ verdict(P) +`</div>`;
+  const c=$("evalCard");
+  c.style.display=""; c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash");
+  watchEval();                       // kein Sprung – nur ein Hinweis, falls die Auswertung ausserhalb des Bildes liegt
+}
+
+/* Hinweisleiste unter dem Gel: erscheint nur, wenn die Auswertung gerade nicht sichtbar ist,
+   und verschwindet von selbst, sobald man sie herunterscrollt. */
+let evalObserver=null;
+function watchEval(){
+  const card=$("evalCard"), hint=$("doneHint");
+  if(evalObserver) evalObserver.disconnect();
+  if(!("IntersectionObserver" in window)){ hint.classList.add("show"); return; }
+  evalObserver = new IntersectionObserver(es=>{
+    hint.classList.toggle("show", !es[0].isIntersecting && card.style.display!=="none");
+  }, {threshold:0.12});
+  evalObserver.observe(card);
+}
+function hideHint(){ $("doneHint").classList.remove("show"); if(evalObserver) evalObserver.disconnect(); }
+function fateExplain(P){
+  if(P.D===0) return "Ohne Feld bleibt die Probe am Auftragsort liegen.";
+  if(P.D===1) return "Auf dem Weg nach rechts steigt der pH-Wert. Erreicht eine Aminosäure den Ort, an dem pH = pI ist, "+
+    "wird sie zum <b>Zwitterion mit Nettoladung null</b> – das Feld übt keine Kraft mehr aus, sie stoppt. Diffundiert sie "+
+    "zufällig weiter, wird sie wieder geladen und zurückgetrieben: Sie wird in einer scharfen Bande <b>fokussiert</b>.";
+  return "Die Polung ist verkehrt: Die Kationen wandern nach links, wo der pH noch tiefer ist. Sie bewegen sich damit "+
+    "<b>vom eigenen pI weg</b>, bleiben positiv geladen und laufen bis in den Elektrodenpuffer – keine Fokussierung.";
+}
+function verdict(P){
+  let t;
+  if(st.poleL==="+" && st.poleR==="-"){
+    t = `<b>Genau so ist der Versuch gemeint.</b> Die Probe ist in Säure gelöst und wird links bei pH 0 aufgetragen –
+      dort sind alle Aminosäuren <b>Kationen</b>. Der + Pol liegt am sauren, der – Pol am basischen Ende. Also wandern alle
+      gemeinsam nach rechts und bleiben je bei ihrem isoelektrischen Punkt stehen: Aus der Mischung werden getrennte Banden.`;
+  }else if(!st.poleL || !st.poleR){
+    t = `<b>Kein geschlossener Stromkreis.</b> Lege an beiden Elektroden einen Pol an.`;
+  }else if(st.poleL===st.poleR){
+    t = `<b>Zwei gleiche Pole erzeugen keine Spannung.</b> Ohne Potentialdifferenz gibt es kein elektrisches Feld – und
+      ohne Feld keine Elektrophorese. Erst ein + und ein – Pol treiben die Ionen an.`;
+  }else{
+    t = `<b>Polung vertauscht.</b> Die Anode (+) muss ans <b>saure</b> Ende (pH 0), die Kathode (–) ans <b>basische</b>
+      Ende (pH 14). Nur dann zeigt die Wanderung auf den eigenen pI zu und die Aminosäure kann anhalten. Umgekehrt gepolt
+      wandert jedes Kation vom pI weg und läuft aus dem Gel.`;
+  }
+  return `<div class="verdict">${t}</div>
+    <div class="verdict" style="border-left-color:var(--hl)"><b>Merksatz.</b> In der IEF wandert jedes Ion so lange,
+    bis es den pH-Wert erreicht, bei dem seine Nettoladung null ist – seinen <b>isoelektrischen Punkt</b>. Dort verliert
+    das Feld seinen Angriffspunkt. Der pI ist ein <i>selbstkorrigierender</i> Endpunkt: Jede Abweichung erzeugt wieder eine
+    Ladung, die das Ion zurücktreibt.</div>`;
+}
+function escapeHTML(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* ---------- Ereignisse ---------- */
+document.querySelectorAll(".polebtn").forEach(b=>b.onclick=()=>{
+  if(b.dataset.side==="L") st.poleL = st.poleL===b.dataset.p ? null : b.dataset.p;
+  else                     st.poleR = st.poleR===b.dataset.p ? null : b.dataset.p;
+  cancelAnimationFrame(raf); resetParts(); renderAll();
+});
+document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
+  const k=c.dataset.k;
+  st.sel = st.sel.includes(k) ? st.sel.filter(x=>x!==k) : [...st.sel,k];
+  st.sel = AAS.filter(a=>st.sel.includes(a.k)).map(a=>a.k);
+  cancelAnimationFrame(raf); resetParts(); renderAll();
+});
+document.querySelectorAll(".preset[data-preset]").forEach(p=>p.onclick=()=>{
+  const m=p.dataset.preset;
+  if(m==="task")   st.sel=["Asp","Thr","Lys"];
+  if(m==="all")    st.sel=AAS.map(a=>a.k);
+  if(m==="acid")   st.sel=AAS.filter(a=>a.t==="sauer").map(a=>a.k);
+  if(m==="base")   st.sel=AAS.filter(a=>a.t==="basisch").map(a=>a.k);
+  if(m==="spread") st.sel=["Asp","Glu","Cys","Ala","His","Arg"];
+  st.sel = AAS.filter(a=>st.sel.includes(a.k)).map(a=>a.k);
+  st.hyp.order=[];
+  cancelAnimationFrame(raf); resetParts(); renderAll();
+});
+document.querySelectorAll(".qblock[data-h]").forEach(q=>{
+  q.querySelectorAll(".opt").forEach(o=>o.onclick=()=>{
+    st.hyp[q.dataset.h]=o.dataset.v;
+    q.querySelectorAll(".opt").forEach(x=>x.classList.toggle("sel", x===o));
+  });
+});
+$("orderPick").addEventListener("click", e=>{
+  const b=e.target.closest("[data-o]"); if(!b) return;
+  if(!st.hyp.order.includes(b.dataset.o)) st.hyp.order.push(b.dataset.o);
+  renderOrderPick();
+});
+$("orderClear").onclick=()=>{ st.hyp.order=[]; renderOrderPick(); };
+/* Antwortmöglichkeiten bei jedem neuen Durchlauf neu mischen, damit die richtige Antwort
+   nicht immer an derselben Stelle steht. Die getroffene Auswahl bleibt markiert. */
+function shuffleOptions(){
+  document.querySelectorAll(".qblock[data-h] .opts").forEach(box=>{
+    const bs=[...box.children];
+    for(let i=bs.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [bs[i],bs[j]]=[bs[j],bs[i]]; }
+    bs.forEach(b=>box.appendChild(b));
+  });
+}
+$("toEval").onclick=()=>{ hideHint(); $("evalCard").scrollIntoView({behavior:"smooth", block:"start"}); };
+/* Begründungsfelder wachsen mit dem Text mit */
+document.querySelectorAll(".why textarea").forEach(t=>{
+  const grow=()=>{ t.style.height="auto"; t.style.height=Math.max(42,t.scrollHeight)+"px"; };
+  t.addEventListener("input", grow); grow();
+});
+$("startBtn").onclick=()=>{ if(st.ran||st.running){ resetParts(); renderGel(); } start(); };
+$("resetBtn").onclick=()=>{ cancelAnimationFrame(raf); resetParts(); shuffleOptions(); renderAll(); };
+$("againBtn").onclick=()=>{ cancelAnimationFrame(raf); resetParts(); shuffleOptions(); renderAll(); window.scrollTo({top:0,behavior:"smooth"}); };
+$("piBtn").onclick=()=>{
+  st.showPI=!st.showPI;
+  $("gel").classList.toggle("showpi", st.showPI);
+  $("piBtn").textContent = st.showPI ? "pI-Werte ausblenden" : "pI-Werte einblenden";
+  updateParts();
+};
+$("speedBtns").addEventListener("click", e=>{
+  const b=e.target.closest("[data-s]"); if(!b) return;
+  st.speed=+b.dataset.s;
+  $("speedBtns").querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===b));
+});
+
+/* Vollbild */
+const fsBtn=$("fsBtn");
+function fsEl(){ return document.fullscreenElement || document.webkitFullscreenElement; }
+fsBtn.onclick=()=>{
+  const r=document.documentElement;
+  if(fsEl()){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+  else { const req=r.requestFullscreen||r.webkitRequestFullscreen; if(req) req.call(r); }
+};
+function fsSync(){
+  const on=!!fsEl();
+  document.body.classList.toggle("isfs",on);
+  fsBtn.textContent = on ? "⤡ Vollbild beenden" : "⤢ Vollbild";
+}
+document.addEventListener("fullscreenchange",fsSync);
+document.addEventListener("webkitfullscreenchange",fsSync);
+
+shuffleOptions();
+resetParts();
+renderAll();
+</script>
+</body>
+</html>
